@@ -1,0 +1,151 @@
+<!-- <html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+
+<body>
+    <h3>ورود به سیستم</h3>
+    <input id="userIdInput" placeholder="ایدی خود را وارد کنید" />
+    <button onclick="registerUser()">اتصال</button>
+
+    <h3>اسم کلاس را وارد کنید</h3>
+    <input id="className" placeholder="اسم اتاق را وارد کنید" />
+    <button onclick="joinedClass()">اتصال به کلاس</button>
+
+    <h3>ارسال نوتیفیکیشن</h3>
+    <input id="toUserInput" placeholder="ایدی گیرنده" />
+    <input id="messageInput" placeholder="متن پیام" />
+    <button onclick="sendNotification()">ارسال</button>
+
+    <h3>ارسال نوتیفیکیشن به کلاس</h3>
+    <input id="className" placeholder="کلاس گیرنده" />
+    <input id="messageInputClass" placeholder="متن پیام" />
+    <button onclick="sendMessageToClass()">ارسال</button>
+
+    <h3>نوتیفیکیشن های دریافتی</h3>
+    <ul id="notification"></ul>
+
+    <h3>نوتیفیکیشن های دریافتی کلاس</h3>
+    <ul id="classNotification"></ul>
+
+    <script src="socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        let currentClass = '';
+
+        function registerUser() {
+            const userId = document.getElementById('userIdInput').value;
+            socket.emit('register-user', userId);
+        };
+
+        function joinedClass() {
+            const className = document.getElementById('className').value;
+            currentClass = className
+            socket.emit('join-class', className)
+        }
+
+        function sendMessageToClass() {
+            const className = document.getElementById('className').value;
+            const message = document.getElementById('messageInputClass').value;
+
+            socket.emit('send-class-message', {
+                className: currentClass, message
+            })
+        }
+
+        function sendNotification() {
+            const toUserId = document.getElementById('toUserInput').value;
+            const message = document.getElementById('messageInput').value;
+
+            socket.emit('send-notification', {
+                toUserId, message
+            });
+        }
+
+        socket.on('notification', message => {
+            const li = document.createElement('li');
+            li.textContent = message;
+            document.getElementById('notification').appendChild(li);
+        });
+
+        socket.on('msg', message => {
+            const li = document.createElement('li');
+            li.textContent = message;
+            document.getElementById('classNotification').appendChild(li);
+        });
+    </script>
+</body>
+
+</html> -->
+
+<!-- index.html -->
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Video Call</title>
+</head>
+<body>
+  <h2>تماس تصویری</h2>
+  <video id="localVideo" autoplay muted></video>
+  <video id="remoteVideo" autoplay></video>
+
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/simple-peer@9.11.1/simplepeer.min.js"></script>
+  <script>
+    const socket = io("http://localhost:5000");
+    const roomId = "my-class-room"; // می‌تونی داینامیکش کنی
+    const username = "کاربر" + Math.floor(Math.random() * 1000);
+
+    const localVideo = document.getElementById("localVideo");
+    const remoteVideo = document.getElementById("remoteVideo");
+
+    let localStream;
+    let peer;
+
+    navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then(stream => {
+      localStream = stream;
+      localVideo.srcObject = stream;
+
+      socket.emit("join-room", { roomId, username });
+
+      socket.on("user-joined", ({ socketId }) => {
+        peer = createPeer(true, socketId);
+        peer.addStream(localStream);
+      });
+
+      socket.on("receive-signal", ({ from, signalData }) => {
+        peer = createPeer(false, from);
+        peer.addStream(localStream);
+        peer.signal(signalData);
+      });
+
+      socket.on("received-returned-signal", ({ from, signalData }) => {
+        peer.signal(signalData);
+      });
+
+      socket.on("user-disconnected", (id) => {
+        console.log("کاربر خارج شد", id);
+        if (peer) peer.destroy();
+      });
+    });
+
+    function createPeer(initiator, to) {
+      const newPeer = new SimplePeer({ initiator, trickle: false });
+      newPeer.on("signal", data => {
+        if (initiator) {
+          socket.emit("send-signal", { signalData: data, to });
+        } else {
+          socket.emit("return-signal", { signalData: data, to });
+        }
+      });
+      newPeer.on("stream", stream => {
+        remoteVideo.srcObject = stream;
+      });
+      return newPeer;
+    }
+  </script>
+</body>
+</html>
